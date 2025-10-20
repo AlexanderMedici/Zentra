@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220" role="img" aria-labelledby="tB dB">
+  <title id="tB">FinSage Icon – FS Shield</title>
+  <desc id="dB">Monogram FS inside a rounded shield with a teal–navy gradient.</desc>
+  <defs>
+    <linearGradient id="FSgradB" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10B6A5"></stop>
+      <stop offset="100%" stop-color="#0A4E9A"></stop>
+    </linearGradient>
+  </defs>
+  <!-- shield -->
+  <rect x="20" y="20" width="180" height="180" rx="28" fill="url(#FSgradB)"></rect>
+  <!-- monogram -->
+  <g fill="#FFFFFF" transform="translate(48,60)">
+    <!-- F -->
+    <rect x="0" y="0" width="18" height="100" rx="4"></rect>
+    <rect x="0" y="0" width="56" height="18" rx="4"></rect>
+    <rect x="0" y="40" width="44" height="18" rx="4"></rect>
+    <!-- S (constructed as path for smoothness) -->
+    <path d="M102,16c-14-12-48-10-48,8c0,12,16,14,28,16c10,2,20,4,20,12c0,16-38,16-52,6" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></path>
+  </g>
+</svg>

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zentra",
-  description: "Track real-time stock prices, get Alerts Explore Company Insights All in one App",
+  title: "FinSage",
+  description: "Democratize financial intelligence — turning complex data into personal insight for every investor, everywhere.",
 };
 
 export default function RootLayout({
