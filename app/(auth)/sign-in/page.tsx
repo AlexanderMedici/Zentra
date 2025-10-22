@@ -43,7 +43,7 @@ const SignIn = () => {
                 <InputField
                     name="email"
                     label="Email"
-                    placeholder="contact@jsmastery.com"
+                    placeholder="contact@mail.com"
                     register={register}
                     error={errors.email}
                     validation={{ required: 'Email is required', pattern: /^\w+@\w+\.\w+$/ }}
@@ -59,7 +59,7 @@ const SignIn = () => {
                     validation={{ required: 'Password is required', minLength: 8 }}
                 />
 
-                <Button type="submit" disabled={isSubmitting} className="yellow-btn w-full mt-5">
+                <Button type="submit" disabled={isSubmitting} className="blue-btn w-full mt-5">
                     {isSubmitting ? 'Signing In' : 'Sign In'}
                 </Button>
 
