@@ -20,32 +20,112 @@ export default function ChatAssistant({ user }: ChatAssistantProps) {
   const [expectedAssistantCount, setExpectedAssistantCount] = useState<number | null>(null);
   const intervalRef = useRef<number | null>(null);
   const sseRef = useRef<EventSource | null>(null);
+  const [sseActive, setSseActive] = useState(false);
+  const pollInFlightRef = useRef(false);
+  const pollAbortRef = useRef<AbortController | null>(null);
+  const sseDeliveredRef = useRef(false);
+  const sseTimeoutRef = useRef<number | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const stopStreamingAndPolling = () => {
+    try { sseRef.current?.close(); } catch {}
+    sseRef.current = null;
+    setSseActive(false);
+    if (intervalRef.current) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (pollAbortRef.current) {
+      try { pollAbortRef.current.abort(); } catch {}
+      pollAbortRef.current = null;
+    }
+    if (sseTimeoutRef.current) {
+      window.clearTimeout(sseTimeoutRef.current);
+      sseTimeoutRef.current = null;
+    }
+  };
 
   // Poll messages periodically, unless an SSE listener is active
   useEffect(() => {
-    if (!threadId || sseRef.current) return;
+    if (!threadId || sseActive || !open) return;
+
     const tick = async () => {
+      if (pollInFlightRef.current) return; // prevent overlapping polls
+      pollInFlightRef.current = true;
+      const controller = new AbortController();
+      pollAbortRef.current = controller;
       try {
-        const res = await fetch(`/api/chat/messages?threadId=${threadId}`);
+        const res = await fetch(`/api/chat/messages?threadId=${threadId}`, { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           const msgs: Message[] = data.messages || [];
           setMessages(msgs);
         }
-      } catch {}
+      } catch {
+        // swallow errors on poll
+      } finally {
+        pollInFlightRef.current = false;
+      }
     };
+
+    // initial load
     tick();
-    intervalRef.current = window.setInterval(tick, 5000);
+    // use a slightly longer interval to reduce load
+    intervalRef.current = window.setInterval(tick, 8000);
+
     return () => {
       if (intervalRef.current) window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      if (pollAbortRef.current) {
+        try { pollAbortRef.current.abort(); } catch {}
+        pollAbortRef.current = null;
+      }
+      pollInFlightRef.current = false;
     };
-  }, [threadId]);
+  }, [threadId, sseActive, open]);
+
+  const fetchMessagesOnce = async (tid?: string | null) => {
+    const id = tid ?? threadId;
+    if (!id) return;
+    if (pollInFlightRef.current) return;
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
+    pollInFlightRef.current = true;
+    try {
+      const res = await fetch(`/api/chat/messages?threadId=${id}`, { signal: controller.signal });
+      if (res.ok) {
+        const data = await res.json();
+        const msgs: Message[] = data.messages || [];
+        setMessages(msgs);
+      }
+    } catch {}
+    finally {
+      pollInFlightRef.current = false;
+    }
+  };
 
   const openSSE = (tid: string) => {
     try {
       sseRef.current?.close();
       const es = new EventSource(`/api/chat/stream?threadId=${tid}`);
       sseRef.current = es;
+      setSseActive(true);
+      sseDeliveredRef.current = false;
+      // guard timeout: stop typing indicator if nothing arrives in 25s
+      if (sseTimeoutRef.current) window.clearTimeout(sseTimeoutRef.current);
+      sseTimeoutRef.current = window.setTimeout(() => {
+        if (!sseDeliveredRef.current) {
+          setAwaitingReply(false);
+          setSseActive(false);
+          es.close();
+          sseRef.current = null;
+          fetchMessagesOnce(tid);
+        }
+      }, 25000);
+      // stop polling while SSE is active
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       es.addEventListener('message', (evt) => {
         try {
           const data = JSON.parse((evt as MessageEvent).data);
@@ -53,20 +133,67 @@ export default function ChatAssistant({ user }: ChatAssistantProps) {
             setMessages((prev) => [...prev, { _id: data._id, role: 'assistant', content: data.content }]);
             setAwaitingReply(false);
             setExpectedAssistantCount(null);
+            sseDeliveredRef.current = true;
+            if (sseTimeoutRef.current) {
+              window.clearTimeout(sseTimeoutRef.current);
+              sseTimeoutRef.current = null;
+            }
             es.close();
             sseRef.current = null;
+            setSseActive(false);
           }
         } catch {}
       });
       es.addEventListener('error', () => {
         es.close();
         sseRef.current = null;
+        setSseActive(false);
+        if (!sseDeliveredRef.current) {
+          setAwaitingReply(false);
+          fetchMessagesOnce(tid);
+        }
+        if (sseTimeoutRef.current) {
+          window.clearTimeout(sseTimeoutRef.current);
+          sseTimeoutRef.current = null;
+        }
       });
     } catch {}
   };
 
+  const clearConversation = async () => {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      // stop SSE + polling before clearing
+      stopStreamingAndPolling();
+
+      if (threadId) {
+        await fetch(`/api/chat/messages?threadId=${threadId}`, { method: 'DELETE' });
+      }
+
+      // reset UI state
+      setMessages([]);
+      setThreadId(null);
+      setAwaitingReply(false);
+      setExpectedAssistantCount(null);
+      setInput('');
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const newChat = () => {
+    // Start a fresh thread without deleting old messages
+    stopStreamingAndPolling();
+    setMessages([]);
+    setThreadId(null);
+    setAwaitingReply(false);
+    setExpectedAssistantCount(null);
+    setInput('');
+  };
+
   const send = async () => {
-    if (!input.trim() || sending) return;
+    if (!input.trim() || sending || awaitingReply) return;
     setSending(true);
     try {
       const res = await fetch('/api/chat/messages', {
@@ -109,9 +236,29 @@ export default function ChatAssistant({ user }: ChatAssistantProps) {
     <div className="fixed z-[9999] bottom-6 right-6 w-[360px] max-h-[70vh] flex flex-col border rounded-lg bg-[#0B0E11] shadow-xl overflow-hidden transition">
       <div className="p-3 border-b flex items-center justify-between">
         <div className="text-gray-300 font-medium">Finsage Assistant</div>
-        <button aria-label="Close chat" onClick={() => setOpen(false)} className="p-1 text-gray-400 hover:text-white">
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            aria-label="Start new chat"
+            onClick={newChat}
+            disabled={sending || awaitingReply}
+            className="text-xs px-2 py-1 rounded bg-[#131a22] text-gray-300 hover:text-white disabled:opacity-50"
+            title="Start new chat"
+          >
+            New
+          </button>
+          <button
+            aria-label="Clear conversation"
+            onClick={clearConversation}
+            disabled={clearing || sending || awaitingReply}
+            className="text-xs px-2 py-1 rounded bg-[#131a22] text-gray-300 hover:text-white disabled:opacity-50"
+            title="Clear conversation"
+          >
+            {clearing ? 'Clearing…' : 'Clear'}
+          </button>
+          <button aria-label="Close chat" onClick={() => setOpen(false)} className="p-1 text-gray-400 hover:text-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {(() => {
@@ -164,7 +311,7 @@ export default function ChatAssistant({ user }: ChatAssistantProps) {
             }
           }}
         />
-        <Button className="yellow-btn" disabled={sending || !input.trim()} onClick={send}>
+        <Button className="yellow-btn" disabled={sending || awaitingReply || !input.trim()} onClick={send}>
           Send
         </Button>
       </div>

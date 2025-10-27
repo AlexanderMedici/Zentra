@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
       { source: '/.redwood/functions/inngest', destination: '/api/inngest' },
       { source: '/.netlify/functions/inngest', destination: '/api/inngest' },
       { source: '/api/functions/inngest', destination: '/api/inngest' },
+      // Support Inngest DevTools probe paths
+      { source: '/x/inngest', destination: '/api/inngest' },
+      { source: '/x/inngest/:path*', destination: '/api/inngest' },
     ];
   },
 };
