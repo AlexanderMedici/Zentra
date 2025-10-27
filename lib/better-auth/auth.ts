@@ -1,33 +1,32 @@
-// Minimal Better Auth-shaped stub to satisfy server action imports.
-// Replace with a real Better Auth client when wiring actual auth.
+import { betterAuth } from 'better-auth';
+import { mongodbAdapter } from 'better-auth/adapters/mongodb';
+import { connectToDatabase } from '@/database/mongoose';
+import { nextCookies } from 'better-auth/next-js';
 
-type EmailCredentials = {
-  email: string;
-  password: string;
-  name?: string;
+let authInstance: ReturnType<typeof betterAuth> | null = null;
+
+export const getAuth = async () => {
+  if (authInstance) return authInstance;
+
+  const mongoose = await connectToDatabase();
+  const db = mongoose.connection.db;
+  if (!db) throw new Error('MongoDB connection not found ');
+
+  authInstance = betterAuth({
+    database: mongodbAdapter(db as any),
+    secret: process.env.BETTER_AUTH_SECRET,
+    baseURL: process.env.BETTER_AUTH_URL,
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: false,
+      requireEmailVerification: false,
+      minPasswordLength: 8,
+      maxPasswordLength: 128,
+      autoSignIn: true,
+    },
+    plugins: [nextCookies()],
+  });
+  return authInstance;
 };
 
-export const auth = {
-  api: {
-    signUpEmail: async ({
-      body,
-    }: {
-      body: EmailCredentials;
-    }) => {
-      // Simulate a successful signup response
-      return { user: { email: body.email, name: body.name ?? "" } };
-    },
-    signInEmail: async ({
-      body,
-    }: {
-      body: EmailCredentials;
-    }) => {
-      // Simulate a successful sign-in response
-      return { session: { email: body.email } };
-    },
-    signOut: async (_opts?: unknown) => {
-      // Simulate a no-op sign out
-      return { ok: true } as const;
-    },
-  },
-};
+export const auth = await getAuth();

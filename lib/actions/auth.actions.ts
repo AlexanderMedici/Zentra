@@ -1,5 +1,4 @@
-'use server';
-
+'use server'; 
 import { auth } from '@/lib/better-auth/auth';
 import { inngest } from '@/lib/inngest/client';
 import { headers, cookies } from 'next/headers';
@@ -38,21 +37,22 @@ export const signUpWithEmail = async ({
   }
 };
 
-export const signInWithEmail = async ({ email, password }: SignInFormData) => {
-  try {
-    const response = await auth.api.signInEmail({
-      body: { email, password },
-      headers: await headers(),
-      // Ensure cookies are written from a server action context
-      cookies: cookies(),
-    });
 
-    return { success: true, data: response };
-  } catch (e) {
-    console.log('Sign in failed', e);
-    return { success: false, error: 'Sign in failed' };
-  }
-};
+
+export const signInWithEmail = async ({ email, password }: SignInFormData) => {
+    try {
+        const response = await auth.api.signInEmail({
+          body: { email, password },
+          headers: await headers(),
+          cookies: cookies(),
+        })
+
+        return { success: true, data: response }
+    } catch (e) {
+        console.log('Sign in failed', e)
+        return { success: false, error: 'Sign in failed' }
+    }
+}
 
 export const signOut = async () => {
   try {

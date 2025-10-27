@@ -6,8 +6,13 @@ import SelectField from '@/components/forms/SelectField';
 import { CountrySelectField } from '@/components/forms/CountrySelectField';
 import { INVESTMENT_GOALS, PREFERRED_INDUSTRIES, RISK_TOLERANCE_OPTIONS } from '@/lib/constants';
 import FooterLink from '@/components/forms/FooterLink';
+import { signUpWithEmail } from '@/lib/auth.actions';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 const SignUp = () => {
+  const router = useRouter();
+
   const {
     register,
     handleSubmit,
@@ -27,12 +32,17 @@ const SignUp = () => {
   });
 
   const onSubmit = async (data: SignUpFormData) => {
-    console.log(data);
     try {
+      const result = await signUpWithEmail(data);
+      if (result.success) router.push('/');
     } catch (e) {
       console.error(e);
+      toast.error('Sign up failed', {
+        description: e instanceof Error ? e.message : 'Failed to create an account.',
+      });
     }
   };
+
   return (
     <>
       <h1 className="form-title">Sign Up & Learn to Earn</h1>
@@ -53,8 +63,7 @@ const SignUp = () => {
           error={errors.email}
           validation={{
             required: 'Email is Needed',
-            pattern: /^\w+@\w+\.\w+$/,
-            message: 'Email address is required',
+            pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Enter a valid email address' },
           }}
         />
         <InputField
@@ -93,8 +102,8 @@ const SignUp = () => {
           required
         />
         <SelectField
-          name="preferedIndustry"
-          label="Prefered Industry"
+          name="preferredIndustry"
+          label="Preferred Industry"
           placeholder="Select your prefered industry"
           options={PREFERRED_INDUSTRIES}
           control={control}
@@ -105,7 +114,7 @@ const SignUp = () => {
         <Button type="submit" disabled={isSubmitting} className="green-btn w-full mt-5">
           {isSubmitting ? 'Account Created' : 'Sign Up and Learn'}
         </Button>
-        <FooterLink text="Already have an account ?" linkText="Log in" href="/sign-in"   />   
+        <FooterLink text="Already have an account ?" linkText="Log in" href="/sign-in" />
       </form>
     </>
   );
