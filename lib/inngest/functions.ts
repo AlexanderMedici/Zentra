@@ -5,6 +5,8 @@ import {getAllUsersForNewsEmail} from "@/lib/actions/user.actions";
 import { getWatchlistSymbolsByEmail } from "@/lib/actions/watchlist.actions";
 import { getNews } from "@/lib/actions/finnhub.actions";
 import { getFormattedTodayDate } from "@/lib/utils";
+import { connectToDatabase } from '@/database/mongoose';
+import { ChatMessageModel } from '@/database/models/chat.model';
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -116,5 +118,103 @@ export const sendDailyNewsSummary = inngest.createFunction(
             })
 
         return { success: true, message: 'Daily news summary emails sent successfully' }
+    }
+)
+
+// Chat assistant: process user prompts via Inngest AI and save reply
+export const processChatMessage = inngest.createFunction(
+    { id: 'chat-assistant' },
+    { event: 'app/chat.ask' },
+    async ({ event, step }) => {
+        await connectToDatabase();
+
+        const { userId, userName, userEmail, threadId, text } = event.data as {
+            userId: string;
+            userName?: string | null;
+            userEmail?: string | null;
+            threadId: string;
+            text: string;
+        };
+        if (!userId || !threadId || !text) return { success: false, message: 'Invalid chat payload' };
+
+        const history = await step.run('load-history', async () => {
+            return ChatMessageModel.find({ threadId }).sort({ createdAt: -1 }).limit(10).lean();
+        });
+
+        const assistantCount = (history as any[]).reduce((acc, m) => acc + (m.role === 'assistant' ? 1 : 0), 0);
+        const newestAssistant = (history as any[]).find((m) => m.role === 'assistant');
+        const newestAssistantTime = newestAssistant ? new Date(newestAssistant.createdAt as any).getTime() : 0;
+        const hoursSinceLastAssistant = newestAssistantTime ? (Date.now() - newestAssistantTime) / (1000 * 60 * 60) : Infinity;
+        const shouldGreetByTime = hoursSinceLastAssistant >= 12; // greet again if it has been 12+ hours
+        const firstName = ((userName || userEmail || 'there') as string).split(' ')[0];
+        const system = [
+            'You are Finsage, a helpful investing assistant. Keep answers concise and practical.',
+            assistantCount === 0 || shouldGreetByTime
+                ? `Greet the user by name as "Hello ${firstName}," in your first sentence, then answer.`
+                : undefined,
+        ]
+            .filter(Boolean)
+            .join(' ');
+
+        const contents = [
+            { role: 'user', parts: [{ text: system }] },
+            ...[...(history as any[])].reverse().map((m) => ({ role: m.role, parts: [{ text: m.content }] })),
+            { role: 'user', parts: [{ text }] },
+        ];
+
+        let reply = 'Sorry, I could not generate a response.';
+        try {
+            // Choose provider/model for Finsage assistant.
+            // Defaults:
+            // - OpenAI gpt-4o-mini if OPENAI_API_KEY is present (free-tier friendly)
+            // - Otherwise Gemini gemini-2.5-flash-lite
+            const provider = (process.env.FINSAGE_CHAT_PROVIDER || '').toLowerCase();
+            const preferOpenAI = provider === 'openai' || (!provider && !!process.env.OPENAI_API_KEY);
+            const modelName = process.env.FINSAGE_CHAT_MODEL || (preferOpenAI ? 'gpt-4o-mini' : 'gemini-2.5-flash-lite');
+
+            const model = preferOpenAI
+              ? step.ai.models.openai({ model: modelName })
+              : step.ai.models.gemini({ model: modelName });
+
+            let response: any;
+            if (preferOpenAI) {
+              const messages = [
+                { role: 'system', content: system },
+                ...[...(history as any[])].reverse().map((m) => ({
+                  role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
+                  content: m.content,
+                })),
+                { role: 'user', content: text },
+              ];
+              response = await step.ai.infer('chat-reply', {
+                model,
+                body: { messages },
+              });
+              const fromOutput = (response as any).output_text;
+              const fromChoices = (response as any).choices?.[0]?.message?.content;
+              const candidate = typeof fromOutput === 'string' && fromOutput.trim().length > 0
+                ? fromOutput
+                : typeof fromChoices === 'string' && fromChoices.trim().length > 0
+                ? fromChoices
+                : null;
+              if (candidate) reply = candidate;
+            } else {
+              response = await step.ai.infer('chat-reply', {
+                model,
+                body: { contents },
+              });
+              const part = (response as any).candidates?.[0]?.content?.parts?.[0];
+              const textCandidate = part && typeof part === 'object' && 'text' in part ? (part as any).text : null;
+              if (typeof textCandidate === 'string' && textCandidate.trim().length > 0) reply = textCandidate;
+            }
+        } catch (e) {
+            await step.run('log-ai-failure', async () => console.error('chat-ai failed', e));
+        }
+
+        await step.run('save-assistant', async () => {
+            await ChatMessageModel.create({ threadId, userId, role: 'assistant', content: reply });
+        });
+
+        return { success: true };
     }
 )

@@ -1,7 +1,17 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async rewrites() {
+    return [
+      // Map common serverless function paths to Next's Inngest endpoint
+      { source: '/.redwood/functions/inngest', destination: '/api/inngest' },
+      { source: '/.netlify/functions/inngest', destination: '/api/inngest' },
+      { source: '/api/functions/inngest', destination: '/api/inngest' },
+      // Support Inngest DevTools probe paths
+      { source: '/x/inngest', destination: '/api/inngest' },
+      { source: '/x/inngest/:path*', destination: '/api/inngest' },
+    ];
+  },
 };
 
 export default nextConfig;

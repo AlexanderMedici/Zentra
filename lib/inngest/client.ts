@@ -1,7 +1,12 @@
 import { Inngest } from 'inngest';
 
-// select ai model you need a key
+// Configure multiple AI providers for Inngest step.ai
+// - Gemini via GEMINI_API_KEY (existing)
+// - OpenAI via OPENAI_API_KEY (new)
 export const inngest = new Inngest({
   id: 'finsage',
-  ai: { gemini: { apiKey: process.env.GEMINI_API_KEY } },
+  ai: {
+    gemini: { apiKey: process.env.GEMINI_API_KEY },
+    openai: { apiKey: process.env.OPENAI_API_KEY },
+  },
 });
