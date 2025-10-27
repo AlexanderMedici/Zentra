@@ -1,13 +1,13 @@
 
 import { serve } from 'inngest/next';
 import { inngest } from '@/lib/inngest/client';
-import { sendDailyNewsSummary, sendSignUpEmail } from '@/lib/inngest/functions';
+import { sendDailyNewsSummary, sendSignUpEmail, processChatMessage } from '@/lib/inngest/functions';
 
 // Inngest only expects GET (health) and POST (invoke). Exporting PUT causes
 // empty-body PUTs to throw JSON parsing errors in the serve handler.
 export const { GET, POST } = serve({
   client: inngest,
-  functions: [sendSignUpEmail, sendDailyNewsSummary],
+  functions: [sendSignUpEmail, sendDailyNewsSummary, processChatMessage],
 });
 
 // Some environments or probes may send a PUT with no body.
