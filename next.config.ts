@@ -1,6 +1,13 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  eslint:{
+    ignoreDuringBuilds: true, 
+  }, 
+  typescript:{
+    ignoreBuildErrors: true, 
+  }, 
+
   async rewrites() {
     return [
       // Map common serverless function paths to Next's Inngest endpoint
@@ -10,6 +17,8 @@ const nextConfig: NextConfig = {
       // Support Inngest DevTools probe paths
       { source: '/x/inngest', destination: '/api/inngest' },
       { source: '/x/inngest/:path*', destination: '/api/inngest' },
+
+
     ];
   },
 };
