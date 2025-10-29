@@ -9,6 +9,8 @@ export interface AlertDoc extends Document {
   threshold: number;
   createdAt: Date;
   active: boolean;
+  lastTriggeredAt?: Date;
+  lastTriggeredPrice?: number;
 }
 
 const AlertSchema = new Schema<AlertDoc>(
@@ -21,10 +23,11 @@ const AlertSchema = new Schema<AlertDoc>(
     threshold: { type: Number, required: true },
     createdAt: { type: Date, default: Date.now },
     active: { type: Boolean, default: true },
+    lastTriggeredAt: { type: Date },
+    lastTriggeredPrice: { type: Number },
   },
   { timestamps: false }
 );
 
 export const AlertModel: Model<AlertDoc> =
   (models?.Alert as Model<AlertDoc>) || model<AlertDoc>('Alert', AlertSchema);
-

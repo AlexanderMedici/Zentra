@@ -1,4 +1,4 @@
-Zentra/Finsage is a Next.js app that helps retail investors research, track, and optimize their portfolios. It combines a clean UI, real‑time market data, daily news summaries, proactive price alerts, and quantitative portfolio tools (Markowitz MVO, Sharpe, CAPM, and a simplified Black–Litterman model).
+Finsage is a Next.js app that helps retail investors research, track, and optimize their portfolios. It combines a clean UI, real‑time market data, daily news summaries, proactive price alerts, and quantitative portfolio tools (Markowitz MVO, Sharpe, CAPM, and a simplified Black–Litterman model).
 Note most features that use cron jobs via inngest daily news and or alert ai agent  have been disabled as it is free tier and has limits as to how much it can be used.. App will allow  user acount creation logout add stocks from trading view portfoilio analysis is disabled. This is an example not a fully fucntional app as the costs do add up.   
 
 Why this app? (Practical use case)

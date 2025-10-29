@@ -221,6 +221,12 @@ declare global {
         changePercent?: number;
     };
 
+    type UserForNewsEmail = {
+        id: string;
+        email: string;
+        name: string;
+    };
+
     type PortfolioAssetRow = {
         symbol: string;
         meanReturnAnnual: number; // decimal per year

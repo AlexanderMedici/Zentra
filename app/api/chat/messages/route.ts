@@ -162,12 +162,15 @@ export async function POST(req: NextRequest) {
     if (origin) {
       try {
         const hdrs = req.headers;
-        const expectedHost =
-          hdrs.get('x-forwarded-host') ||
-          hdrs.get('host') ||
-          new URL(req.url).host;
+        const xfwd = (hdrs.get('x-forwarded-host') || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const hostHdr = (hdrs.get('host') || '').trim();
+        const urlHost = new URL(req.url).host;
         const originHost = new URL(origin).host;
-        if (originHost !== expectedHost) return new Response('Forbidden', { status: 403 });
+        const candidates = new Set<string>([...xfwd, hostHdr, urlHost].filter(Boolean) as string[]);
+        if (!candidates.has(originHost)) return new Response('Forbidden', { status: 403 });
       } catch {}
     }
     await connectToDatabase();
@@ -232,12 +235,15 @@ export async function DELETE(req: NextRequest) {
     if (origin) {
       try {
         const hdrs = req.headers;
-        const expectedHost =
-          hdrs.get('x-forwarded-host') ||
-          hdrs.get('host') ||
-          new URL(req.url).host;
+        const xfwd = (hdrs.get('x-forwarded-host') || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const hostHdr = (hdrs.get('host') || '').trim();
+        const urlHost = new URL(req.url).host;
         const originHost = new URL(origin).host;
-        if (originHost !== expectedHost) return new Response('Forbidden', { status: 403 });
+        const candidates = new Set<string>([...xfwd, hostHdr, urlHost].filter(Boolean) as string[]);
+        if (!candidates.has(originHost)) return new Response('Forbidden', { status: 403 });
       } catch {}
     }
     await connectToDatabase();
