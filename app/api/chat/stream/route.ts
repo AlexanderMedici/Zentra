@@ -22,21 +22,49 @@ export async function GET(req: NextRequest) {
     const latest = await ChatMessageModel.findOne({ threadId, userId: session.user.id, role: 'assistant' })
       .sort({ createdAt: -1 })
       .lean();
-    let lastSeen = latest?.createdAt ? new Date(latest.createdAt) : new Date();
+    // Use a small time buffer if no prior assistant message exists
+    // to avoid missing messages created at the same instant as connect.
+    let lastSeen = latest?.createdAt
+      ? new Date(latest.createdAt)
+      : new Date(Date.now() - 5000);
+
+    let closed = false;
+    // Timer refs captured for cleanup in both start() and cancel()
+    let heartbeat: any;
+    let poller: any;
+    let killer: any;
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         const enc = new TextEncoder();
-        let closed = false;
+
+        const cleanup = () => {
+          if (heartbeat) clearInterval(heartbeat);
+          if (poller) clearInterval(poller);
+          if (killer) clearTimeout(killer);
+        };
+
+        const safeClose = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.close();
+          } catch {}
+        };
 
         const send = (event: string, data?: any) => {
           if (closed) return;
-          const payload = data !== undefined ? `event: ${event}\ndata: ${JSON.stringify(data)}\n\n` : `event: ${event}\n\n`;
-          controller.enqueue(enc.encode(payload));
+          try {
+            const payload =
+              data !== undefined
+                ? `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+                : `event: ${event}\n\n`;
+            controller.enqueue(enc.encode(payload));
+          } catch {}
         };
 
         // Heartbeat every 10s
-        const heartbeat = setInterval(() => send('ping'), 10000);
+        heartbeat = setInterval(() => send('ping'), 10000);
 
         // Poll DB for new assistant messages since lastSeen
         const tick = async () => {
@@ -57,41 +85,34 @@ export async function GET(req: NextRequest) {
                 lastSeen = new Date(m.createdAt as any);
               }
               // Close after first batch to let client re-open if needed
-              clearInterval(heartbeat);
-              clearInterval(poller);
-              closed = true;
-              controller.close();
+              cleanup();
+              safeClose();
               return;
             }
           } catch (e) {
             // On error, close quietly
-            clearInterval(heartbeat);
-            clearInterval(poller);
-            closed = true;
-            controller.close();
+            cleanup();
+            safeClose();
           }
         };
 
-        const poller = setInterval(tick, 600);
+        poller = setInterval(tick, 600);
         // Initial quick check
         tick();
 
-        const killer = setTimeout(() => {
+        killer = setTimeout(() => {
           if (closed) return;
-          clearInterval(heartbeat);
-          clearInterval(poller);
-          closed = true;
-          controller.close();
+          cleanup();
+          safeClose();
         }, timeoutMs);
-
-        // Cleanup on cancel
-        // @ts-ignore
-        controller.signal?.addEventListener?.('abort', () => {
-          clearInterval(heartbeat);
-          clearInterval(poller);
-          clearTimeout(killer);
-          closed = true;
-        });
+      },
+      cancel() {
+        // Called when the client disconnects. Ensure timers are cleared and state is marked closed.
+        if (closed) return;
+        if (heartbeat) clearInterval(heartbeat);
+        if (poller) clearInterval(poller);
+        if (killer) clearTimeout(killer);
+        closed = true;
       },
     });
 

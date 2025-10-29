@@ -33,9 +33,23 @@ async function generateAssistantReplyLocally(params: {
       .filter(Boolean)
       .join(' ');
 
-    const provider = (process.env.FINSAGE_CHAT_PROVIDER || '').toLowerCase();
+    const rawProvider = (process.env.FINSAGE_CHAT_PROVIDER || '').toLowerCase();
+    const provider = rawProvider === 'chatgpt' ? 'openai' : rawProvider;
     const preferOpenAI = provider === 'openai' || (!provider && !!process.env.OPENAI_API_KEY);
-    const modelName = process.env.FINSAGE_CHAT_MODEL || (preferOpenAI ? 'gpt-4o-mini' : 'gemini-2.5-flash-lite');
+    const rawModel = (process.env.FINSAGE_CHAT_MODEL || '').toLowerCase().replace(/\s+/g, '');
+    const modelName = (() => {
+      if (preferOpenAI) {
+        if (!rawModel) return 'gpt-4o-mini';
+        if (['chatgpt','chat-gpt','gpt','gpt4','gpt-4','gpt4o','gpt-4o'].includes(rawModel)) return 'gpt-4o';
+        if (['gpt-4o-mini','gpt4o-mini','mini'].includes(rawModel)) return 'gpt-4o-mini';
+        if (['gpt-3.5-turbo','gpt3.5','gpt-3.5'].includes(rawModel)) return 'gpt-3.5-turbo';
+        return process.env.FINSAGE_CHAT_MODEL as string;
+      } else {
+        if (!rawModel) return 'gemini-2.5-flash-lite';
+        if (['gemini','gemini-2.5','gemini2.5','flash','flash-lite'].includes(rawModel)) return 'gemini-2.5-flash-lite';
+        return process.env.FINSAGE_CHAT_MODEL as string;
+      }
+    })();
 
     let reply = 'Sorry, I could not generate a response.';
 
@@ -50,7 +64,8 @@ async function generateAssistantReplyLocally(params: {
       ];
 
       try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        const endpoint = 'https://api.openai.com/v1/chat/completions';
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -62,8 +77,20 @@ async function generateAssistantReplyLocally(params: {
           const data: any = await res.json();
           const content = data?.choices?.[0]?.message?.content;
           if (typeof content === 'string' && content.trim().length > 0) reply = content;
+        } else {
+          let body: any = null;
+          try { body = await res.text(); } catch {}
+          console.error('openai-chat failed', {
+            status: res.status,
+            statusText: res.statusText,
+            endpoint,
+            model: modelName,
+            body,
+          });
         }
-      } catch {}
+      } catch (e) {
+        console.error('openai-chat exception', e);
+      }
     } else {
       // Gemini HTTP API
       try {
@@ -83,8 +110,20 @@ async function generateAssistantReplyLocally(params: {
           const part = data?.candidates?.[0]?.content?.parts?.[0];
           const textCandidate = part && typeof part === 'object' && 'text' in part ? (part as any).text : null;
           if (typeof textCandidate === 'string' && textCandidate.trim().length > 0) reply = textCandidate;
+        } else {
+          let body: any = null;
+          try { body = await res.text(); } catch {}
+          console.error('gemini-chat failed', {
+            status: res.status,
+            statusText: res.statusText,
+            endpoint,
+            model: modelName,
+            body,
+          });
         }
-      } catch {}
+      } catch (e) {
+        console.error('gemini-chat exception', e);
+      }
     }
 
     await ChatMessageModel.create({ threadId, userId, role: 'assistant', content: reply });
@@ -122,9 +161,13 @@ export async function POST(req: NextRequest) {
     const origin = req.headers.get('origin');
     if (origin) {
       try {
-        const reqHost = new URL(req.url).host;
+        const hdrs = req.headers;
+        const expectedHost =
+          hdrs.get('x-forwarded-host') ||
+          hdrs.get('host') ||
+          new URL(req.url).host;
         const originHost = new URL(origin).host;
-        if (originHost !== reqHost) return new Response('Forbidden', { status: 403 });
+        if (originHost !== expectedHost) return new Response('Forbidden', { status: 403 });
       } catch {}
     }
     await connectToDatabase();
@@ -188,9 +231,13 @@ export async function DELETE(req: NextRequest) {
     const origin = req.headers.get('origin');
     if (origin) {
       try {
-        const reqHost = new URL(req.url).host;
+        const hdrs = req.headers;
+        const expectedHost =
+          hdrs.get('x-forwarded-host') ||
+          hdrs.get('host') ||
+          new URL(req.url).host;
         const originHost = new URL(origin).host;
-        if (originHost !== reqHost) return new Response('Forbidden', { status: 403 });
+        if (originHost !== expectedHost) return new Response('Forbidden', { status: 403 });
       } catch {}
     }
     await connectToDatabase();

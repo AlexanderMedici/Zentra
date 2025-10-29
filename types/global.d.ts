@@ -108,6 +108,9 @@ declare global {
         isInWatchlist: boolean;
         showTrashIcon?: boolean;
         type?: 'button' | 'icon';
+        // Optional visual tweaks for icon rendering
+        iconVariant?: 'star' | 'plus';
+        className?: string;
         onWatchlistChange?: (symbol: string, isAdded: boolean) => void;
     };
 
@@ -175,6 +178,8 @@ declare global {
         buttonLabel?: string;
         buttonVariant?: 'primary' | 'secondary';
         className?: string;
+        // Optional callback to react to watchlist changes from the search modal
+        onWatchlistChange?: (symbol: string, isAdded: boolean) => void;
     };
 
     type AlertData = {
@@ -215,6 +220,28 @@ declare global {
         threshold: number;
         changePercent?: number;
     };
+
+    type PortfolioAssetRow = {
+        symbol: string;
+        meanReturnAnnual: number; // decimal per year
+        volatilityAnnual: number; // decimal per year
+        beta: number;
+        sharpe: number;
+        capmExpectedAnnual: number; // decimal per year
+        weightMVO: number;
+        weightBL: number;
+    };
+
+    type PortfolioAnalysis = {
+        symbols: string[];
+        market: string;
+        rows: PortfolioAssetRow[];
+        portfolio: {
+            returnDaily: number;
+            volatilityDaily: number;
+            sharpeDaily: number;
+        };
+    } | null;
 }
 
 export {};
