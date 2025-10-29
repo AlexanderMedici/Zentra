@@ -1,6 +1,6 @@
 'use server';
 
-import { getDateRange, validateArticle, formatArticle } from '@/lib/utils';
+import { getDateRange, validateArticle, formatArticle, formatPrice, formatChangePercent, formatMarketCapValue } from '@/lib/utils';
 import { POPULAR_STOCK_SYMBOLS } from '@/lib/constants';
 import { cache } from 'react';
 
@@ -52,6 +52,8 @@ export async function getNews(symbols?: string[]): Promise<MarketNewsArticle[]> 
         })
       );
 
+      
+
       const collected: MarketNewsArticle[] = [];
       // Round-robin up to 6 picks
       for (let round = 0; round < maxArticles; round++) {
@@ -97,6 +99,118 @@ export async function getNews(symbols?: string[]): Promise<MarketNewsArticle[]> 
     throw new Error('Failed to fetch news');
   }
 }
+
+// Fetch daily candles (close prices) for a symbol for the last `days` days
+// Simple in-memory cache for candle requests within a single runtime
+const _candleCache: Map<string, { at: number; data: { t: number[]; c: number[] } }> = new Map();
+
+export async function getDailyCandles(symbol: string, days: number = 252): Promise<{ t: number[]; c: number[] }> {
+  const cleanSymbol = symbol.trim().toUpperCase();
+  const token = process.env.FINNHUB_API_KEY ?? NEXT_PUBLIC_FINNHUB_API_KEY;
+  if (!token) throw new Error('FINNHUB API key is not configured');
+
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - Math.floor(days * 24 * 60 * 60);
+  const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${encodeURIComponent(cleanSymbol)}&resolution=D&from=${from}&to=${to}&token=${token}`;
+
+  const key = `${cleanSymbol}|${days}`;
+  const now = Date.now();
+  const cached = _candleCache.get(key);
+  if (cached && now - cached.at < 30 * 60 * 1000) {
+    return cached.data;
+  }
+
+  const data = await fetchJSON<any>(url, 1800);
+  if (!data || data.s !== 'ok' || !Array.isArray(data.t) || !Array.isArray(data.c)) {
+    return { t: [], c: [] };
+  }
+  const result = { t: data.t as number[], c: data.c as number[] };
+  _candleCache.set(key, { at: now, data: result });
+  return result;
+}
+
+// Fetch batch daily closes for multiple symbols
+export async function getBatchDailyCloses(symbols: string[], days: number = 252): Promise<Record<string, { t: number[]; c: number[] }>> {
+  const result: Record<string, { t: number[]; c: number[] }> = {};
+  const unique = Array.from(new Set((symbols || []).map((s) => s.trim().toUpperCase()).filter(Boolean)));
+  await Promise.all(
+    unique.map(async (sym) => {
+      try {
+        result[sym] = await getDailyCandles(sym, days);
+      } catch (e: any) {
+        const msg = e instanceof Error ? e.message : String(e ?? '');
+        if (msg.includes('403') || msg.toLowerCase().includes("don't have access")) {
+          console.warn('getBatchDailyCloses limited access for', sym);
+        } else {
+          console.error('getBatchDailyCloses failed for', sym, e);
+        }
+        result[sym] = { t: [], c: [] };
+      }
+    })
+  );
+  return result;
+}
+
+export async function pickMarketProxy(preferred?: string[]): Promise<'COMPOSITE' | string> {
+  const env = (process.env.FINNHUB_MARKET_PROXY || '').trim().toUpperCase();
+  if (env) return env;
+  const list = (preferred && preferred.length ? preferred : ['SPY', 'QQQ', 'VOO']).map((s) => s.trim().toUpperCase());
+  // We return the first preferred; analyze step will fallback to composite if data missing
+  return list[0] || 'COMPOSITE';
+}
+
+// Fetch stock details by symbol
+export const getStocksDetails = cache(async (symbol: string) => {
+  const cleanSymbol = symbol.trim().toUpperCase();
+
+  try {
+    const [quote, profile, financials] = await Promise.all([
+      fetchJSON(
+        // Price data - no caching for accuracy
+        `${FINNHUB_BASE_URL}/quote?symbol=${cleanSymbol}&token=${NEXT_PUBLIC_FINNHUB_API_KEY}`
+      ),
+      fetchJSON(
+        // Company info - cache 1hr (rarely changes)
+        `${FINNHUB_BASE_URL}/stock/profile2?symbol=${cleanSymbol}&token=${NEXT_PUBLIC_FINNHUB_API_KEY}`,
+        3600
+      ),
+      fetchJSON(
+        // Financial metrics (P/E, etc.) - cache 30min
+        `${FINNHUB_BASE_URL}/stock/metric?symbol=${cleanSymbol}&metric=all&token=${NEXT_PUBLIC_FINNHUB_API_KEY}`,
+        1800
+      ),
+    ]);
+
+    // Type cast the responses
+    const quoteData = quote as QuoteData;
+    const profileData = profile as ProfileData;
+    const financialsData = financials as FinancialsData;
+
+    // Check if we got valid quote and profile data
+    if (!quoteData?.c || !profileData?.name)
+      throw new Error('Invalid stock data received from API');
+
+    const changePercent = quoteData.dp || 0;
+    const peRatio = financialsData?.metric?.peNormalizedAnnual || null;
+
+    return {
+      symbol: cleanSymbol,
+      company: profileData?.name,
+      currentPrice: quoteData.c,
+      changePercent,
+      priceFormatted: formatPrice(quoteData.c),
+      changeFormatted: formatChangePercent(changePercent),
+      peRatio: peRatio?.toFixed(1) || '—',
+      marketCapFormatted: formatMarketCapValue(
+        profileData?.marketCapitalization || 0
+      ),
+    };
+  } catch (error) {
+    console.error(`Error fetching details for ${cleanSymbol}:`, error);
+    throw new Error('Failed to fetch stock details');
+  }
+});
+
 
 export const searchStocks = cache(async (query?: string): Promise<StockWithWatchlistStatus[]> => {
   try {

@@ -7,6 +7,10 @@ import { getNews } from "@/lib/actions/finnhub.actions";
 import { getFormattedTodayDate } from "@/lib/utils";
 import { connectToDatabase } from '@/database/mongoose';
 import { ChatMessageModel } from '@/database/models/chat.model';
+import { AlertModel } from '@/database/models/alert.model';
+import { NotificationPreferencesModel } from '@/database/models/notification-preferences.model';
+import { sendAlertEmail } from '@/lib/nodemailer';
+import { fetchJSON } from '@/lib/actions/finnhub.actions';
 
 export const sendSignUpEmail = inngest.createFunction(
     { id: 'sign-up-email' },
@@ -47,6 +51,76 @@ export const sendSignUpEmail = inngest.createFunction(
             success: true,
             message: 'Welcome email sent successfully'
         }
+    }
+)
+
+export const processPriceAlerts = inngest.createFunction(
+    { id: 'process-price-alerts' },
+    [ { event: 'app/alerts.process' }, { cron: '*/10 * * * *' } ],
+    async ({ step }) => {
+        const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+        const token = process.env.FINNHUB_API_KEY || process.env.NEXT_PUBLIC_FINNHUB_API_KEY || '';
+        if (!token) return { success: false, message: 'No FINNHUB token' } as const;
+
+        await step.run('db-connect', async () => connectToDatabase());
+
+        const alerts = await step.run('load-active-alerts', async () => {
+            return AlertModel.find({ active: { $ne: false } }).lean();
+        });
+
+        if (!Array.isArray(alerts) || alerts.length === 0) return { success: true, message: 'No alerts' } as const;
+
+        const symbols = Array.from(new Set((alerts as any[]).map(a => String(a.symbol).toUpperCase())));
+
+        const quotes = await step.run('fetch-quotes', async () => {
+            const map: Record<string, number> = {};
+            await Promise.all(symbols.map(async (sym) => {
+                try {
+                    const q: any = await fetchJSON(`${FINNHUB_BASE_URL}/quote?symbol=${encodeURIComponent(sym)}&token=${token}`);
+                    const price = Number(q?.c || 0);
+                    if (Number.isFinite(price) && price > 0) map[sym] = price;
+                } catch (e) {
+                    console.error('quote fail', sym, e);
+                }
+            }));
+            return map;
+        });
+
+        const db = (await connectToDatabase()).connection.db!;
+
+        for (const a of alerts as any[]) {
+            const sym = String(a.symbol).toUpperCase();
+            const price = quotes[sym];
+            if (!price) continue;
+            const threshold = Number(a.threshold);
+            const triggered = a.alertType === 'upper' ? price >= threshold : price <= threshold;
+            if (!triggered) continue;
+
+            // Load user email and preferences
+            const user = await db.collection('user').findOne({ id: a.userId });
+            if (!user?.email) continue;
+            const prefs = await NotificationPreferencesModel.findOne({ userId: a.userId }).lean();
+            const allowEmail = !!(prefs?.emailAllowed ?? true); // default allow email if not set
+            if (!allowEmail) continue;
+
+            const conditionLabel = a.alertType === 'upper' ? `Price >= $${threshold.toFixed(2)}` : `Price <= $${threshold.toFixed(2)}`;
+            const symbolUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/stocks/${sym}`;
+
+            await step.run(`email-${a._id}`, async () => {
+                await sendAlertEmail({
+                    email: user.email,
+                    symbol: sym,
+                    company: a.company,
+                    alertName: a.alertName,
+                    conditionLabel,
+                    currentPrice: `$${price.toFixed(2)}`,
+                    threshold: `$${threshold.toFixed(2)}`,
+                    symbolUrl: symbolUrl || '#',
+                });
+            });
+        }
+
+        return { success: true } as const;
     }
 )
 
@@ -168,9 +242,23 @@ export const processChatMessage = inngest.createFunction(
             // Defaults:
             // - OpenAI gpt-4o-mini if OPENAI_API_KEY is present (free-tier friendly)
             // - Otherwise Gemini gemini-2.5-flash-lite
-            const provider = (process.env.FINSAGE_CHAT_PROVIDER || '').toLowerCase();
+            const rawProvider = (process.env.FINSAGE_CHAT_PROVIDER || '').toLowerCase();
+            const provider = rawProvider === 'chatgpt' ? 'openai' : rawProvider;
             const preferOpenAI = provider === 'openai' || (!provider && !!process.env.OPENAI_API_KEY);
-            const modelName = process.env.FINSAGE_CHAT_MODEL || (preferOpenAI ? 'gpt-4o-mini' : 'gemini-2.5-flash-lite');
+            const rawModel = (process.env.FINSAGE_CHAT_MODEL || '').toLowerCase().replace(/\s+/g, '');
+            const modelName = (() => {
+              if (preferOpenAI) {
+                if (!rawModel) return 'gpt-4o-mini';
+                if (['chatgpt','chat-gpt','gpt','gpt4','gpt-4','gpt4o','gpt-4o'].includes(rawModel)) return 'gpt-4o';
+                if (['gpt-4o-mini','gpt4o-mini','mini'].includes(rawModel)) return 'gpt-4o-mini';
+                if (['gpt-3.5-turbo','gpt3.5','gpt-3.5'].includes(rawModel)) return 'gpt-3.5-turbo';
+                return process.env.FINSAGE_CHAT_MODEL as string;
+              } else {
+                if (!rawModel) return 'gemini-2.5-flash-lite';
+                if (['gemini','gemini-2.5','gemini2.5','flash','flash-lite'].includes(rawModel)) return 'gemini-2.5-flash-lite';
+                return process.env.FINSAGE_CHAT_MODEL as string;
+              }
+            })();
 
             const model = preferOpenAI
               ? step.ai.models.openai({ model: modelName })

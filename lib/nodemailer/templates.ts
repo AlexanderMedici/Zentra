@@ -305,6 +305,83 @@ export const NEWS_SUMMARY_EMAIL_TEMPLATE = `<!DOCTYPE html>
 </body>
 </html>`;
 
+export const ALERT_TRIGGER_EMAIL_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finsage Alert Triggered</title>
+  <style>
+    body { background:#050505; color:#ccdadc; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; margin:0; }
+    .container { max-width:600px; margin:0 auto; background:#141414; border:1px solid #30333A; border-radius:8px; }
+    .header { padding:24px 24px 0 24px; }
+    .logo { height:36px; }
+    .content { padding:24px; }
+    .title { color:#FDD458; font-size:20px; margin:0 0 16px 0; }
+    .card { background:#0F0F0F; border:1px solid #30333A; border-radius:8px; padding:16px; }
+    .row { display:flex; justify-content:space-between; margin:6px 0; }
+    .label { color:#9ca3af; }
+    .cta { margin-top:20px; text-align:center; }
+    .button { display:inline-block; background:linear-gradient(135deg, #FDD458 0%, #E8BA40 100%); color:#000; text-decoration:none; padding:12px 20px; border-radius:8px; font-weight:600; }
+    .footer { padding:16px 24px 24px 24px; font-size:12px; color:#9ca3af; text-align:center; }
+  </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img src="/assets/icons/finsage13.png" alt="Finsage" class="logo" />
+      </div>
+      <div class="content">
+        <h1 class="title">Price Alert Triggered</h1>
+        <p>Your alert has been triggered for <strong>{{symbol}}</strong> ({{company}}).</p>
+        <div class="card">
+          <div class="row"><span class="label">Alert</span><span>{{alertName}}</span></div>
+          <div class="row"><span class="label">Condition</span><span>{{conditionLabel}}</span></div>
+          <div class="row"><span class="label">Current Price</span><span>{{currentPrice}}</span></div>
+          <div class="row"><span class="label">Threshold</span><span>{{threshold}}</span></div>
+        </div>
+        <div class="cta">
+          <a href="{{symbolUrl}}" class="button">View {{symbol}} on Finsage</a>
+        </div>
+      </div>
+      <div class="footer">
+        Sent by Finsage Alerts • Manage notifications in your account settings.
+      </div>
+    </div>
+  </body>
+</html>`;
+
+export const NOTIFICATION_ENABLED_EMAIL_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finsage Notifications Enabled</title>
+  <style>
+    body { background:#050505; color:#ccdadc; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; margin:0; }
+    .container { max-width:600px; margin:0 auto; background:#141414; border:1px solid #30333A; border-radius:8px; }
+    .header { padding:24px 24px 0 24px; }
+    .logo { height:36px; }
+    .content { padding:24px; }
+    .title { color:#FDD458; font-size:20px; margin:0 0 16px 0; }
+    .footer { padding:16px 24px 24px 24px; font-size:12px; color:#9ca3af; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="/assets/icons/finsage13.png" alt="Finsage" class="logo" />
+    </div>
+    <div class="content">
+      <h1 class="title">Notifications Enabled</h1>
+      <p>Great news! You will now receive price alerts from Finsage by {{channel}}.</p>
+      <p>You can update your notification preferences at any time.</p>
+    </div>
+    <div class="footer">Finsage • Smarter investing, simplified.</div>
+  </div>
+</body>
+</html>`;
+
 export const STOCK_ALERT_UPPER_EMAIL_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
 <head>

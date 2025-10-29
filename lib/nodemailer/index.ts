@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { WELCOME_EMAIL_TEMPLATE, NEWS_SUMMARY_EMAIL_TEMPLATE } from '@/lib/nodemailer/templates';
+import { WELCOME_EMAIL_TEMPLATE, NEWS_SUMMARY_EMAIL_TEMPLATE, ALERT_TRIGGER_EMAIL_TEMPLATE, NOTIFICATION_ENABLED_EMAIL_TEMPLATE } from '@/lib/nodemailer/templates';
 
 export const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -55,4 +55,58 @@ export const sendNewsSummaryEmail = async ({
   };
 
   await transporter.sendMail(mailOptions);
+};
+
+export const sendAlertEmail = async ({
+  email,
+  symbol,
+  company,
+  alertName,
+  conditionLabel,
+  currentPrice,
+  threshold,
+  symbolUrl,
+}: {
+  email: string;
+  symbol: string;
+  company: string;
+  alertName: string;
+  conditionLabel: string;
+  currentPrice: string;
+  threshold: string;
+  symbolUrl: string;
+}): Promise<void> => {
+  const html = ALERT_TRIGGER_EMAIL_TEMPLATE
+    .replace(/{{symbol}}/g, symbol)
+    .replace(/{{company}}/g, company)
+    .replace(/{{alertName}}/g, alertName)
+    .replace(/{{conditionLabel}}/g, conditionLabel)
+    .replace(/{{currentPrice}}/g, currentPrice)
+    .replace(/{{threshold}}/g, threshold)
+    .replace(/{{symbolUrl}}/g, symbolUrl);
+
+  await transporter.sendMail({
+    from: `"Finsage Alerts" <${process.env.NODEMAILER_EMAIL!}>`,
+    to: email,
+    subject: `Price Alert: ${symbol} - ${conditionLabel}`,
+    html,
+  });
+};
+
+export const sendNotificationEnabledEmail = async ({
+  email,
+  channel,
+}: {
+  email: string;
+  channel: string;
+}): Promise<void> => {
+  const html = NOTIFICATION_ENABLED_EMAIL_TEMPLATE
+    .replace(/{{channel}}/g, channel);
+
+  await transporter.sendMail({
+    from: `"Finsage Alerts" <${process.env.NODEMAILER_EMAIL!}>`,
+    to: email,
+    subject: `Notifications enabled for ${channel}`,
+    html,
+  });
 };
