@@ -329,7 +329,7 @@ export const ALERT_TRIGGER_EMAIL_TEMPLATE = `<!DOCTYPE html>
   <body>
     <div class="container">
       <div class="header">
-        <img src="/assets/icons/finsage13.png" alt="Finsage" class="logo" />
+        <img src="{{logoUrl}}" alt="Finsage" class="logo" />
       </div>
       <div class="content">
         <h1 class="title">Price Alert Triggered</h1>
@@ -370,7 +370,7 @@ export const NOTIFICATION_ENABLED_EMAIL_TEMPLATE = `<!DOCTYPE html>
 <body>
   <div class="container">
     <div class="header">
-      <img src="/assets/icons/finsage13.png" alt="Finsage" class="logo" />
+      <img src="{{logoUrl}}" alt="Finsage" class="logo" />
     </div>
     <div class="content">
       <h1 class="title">Notifications Enabled</h1>

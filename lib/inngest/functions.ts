@@ -118,6 +118,14 @@ export const processPriceAlerts = inngest.createFunction(
                     symbolUrl: symbolUrl || '#',
                 });
             });
+
+            // Deactivate alert after sending to avoid repeated emails on each run.
+            await step.run(`deactivate-${a._id}`, async () => {
+                await AlertModel.updateOne(
+                    { _id: a._id },
+                    { $set: { active: false, lastTriggeredAt: new Date(), lastTriggeredPrice: price } }
+                );
+            });
         }
 
         return { success: true } as const;

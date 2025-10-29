@@ -72,11 +72,11 @@ export default function SearchCommand({
 
   // Handle watchlist changes status change
   const handleWatchlistChange = async (symbol: string, isAdded: boolean) => {
-    // Update current stocks
-    setStocks(
-      initialStocks?.map((stock) =>
+    // Update current list, preserving any active search results
+    setStocks((prev) =>
+      (prev ?? initialStocks ?? []).map((stock) =>
         stock.symbol === symbol ? { ...stock, isInWatchlist: isAdded } : stock
-      ) || []
+      )
     );
     // Notify parent (e.g., watchlist page) to refresh
     onWatchlistChange?.(symbol, isAdded);
