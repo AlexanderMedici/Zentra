@@ -52,15 +52,18 @@ export async function GET(req: NextRequest) {
           } catch {}
         };
 
-        const send = (event: string, data?: any) => {
-          if (closed) return;
+        const send = (event: string, data?: any): boolean => {
+          if (closed) return false;
           try {
             const payload =
               data !== undefined
                 ? `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
                 : `event: ${event}\n\n`;
             controller.enqueue(enc.encode(payload));
-          } catch {}
+            return true;
+          } catch (e) {
+            return false;
+          }
         };
 
         // Heartbeat every 10s
@@ -81,7 +84,13 @@ export async function GET(req: NextRequest) {
 
             if (fresh && fresh.length > 0) {
               for (const m of fresh) {
-                send('message', { _id: String(m._id), role: m.role, content: m.content, createdAt: m.createdAt });
+                const ok = send('message', { _id: String(m._id), role: m.role, content: m.content, createdAt: m.createdAt });
+                if (!ok) {
+                  // If delivery failed, bail without advancing lastSeen
+                  cleanup();
+                  safeClose();
+                  return;
+                }
                 lastSeen = new Date(m.createdAt as any);
               }
               // Close after first batch to let client re-open if needed

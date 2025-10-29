@@ -33,9 +33,21 @@ export default function AlertsManager({ initialAlerts }: { initialAlerts: AlertI
 
   const onToggle = async (id: string, current?: boolean) => {
     const next = !current;
+    const prev = alerts;
+    // Optimistic UI update
     setAlerts((list) => list.map((a) => (a.id === id ? { ...a, active: next } : a)));
-    const res = await toggleAlertActive(id, next);
-    if (!res.success) toast.error(res.error || 'Failed to update');
+    try {
+      const res = await toggleAlertActive(id, next);
+      if (!res.success) {
+        // Revert on failure
+        setAlerts(prev);
+        toast.error(res.error || 'Failed to update');
+      }
+    } catch (e) {
+      // Revert on exception
+      setAlerts(prev);
+      toast.error('Failed to update');
+    }
   };
 
   const onDelete = async (id: string) => {

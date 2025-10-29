@@ -1,36 +1,125 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zentra (Finsage) — Investing Assistant
 
-## Getting Started
+Zentra is a Next.js app that helps retail investors research, track, and optimize their portfolios. It combines a clean UI, real-time market data, daily news summaries, proactive price alerts, and quantitative portfolio tools (Markowitz MVO, Sharpe, CAPM, and a simplified Black–Litterman model).
 
-First, run the development server:
+## Why this app? (Practical use case)
 
-```bash
+You track a handful of stocks and don’t want to miss major moves or news. Zentra lets you:
+- Search tickers, add them to a watchlist, and see live prices and metrics.
+- Get daily news summaries tailored to your watchlist, directly in your inbox.
+- Set price alerts (e.g., “AAPL = ”) and receive emails when they trigger.
+- Analyze your portfolio with risk/return tools and suggested rebalance targets.
+
+This reduces noise and makes rebalancing decisions more systematic.
+
+## Features
+
+- Watchlist management
+  - Add/remove stocks, round-robin curated news (max 6 articles).
+  - Server-safe DB operations via Mongoose.
+- Stock search and details
+  - Symbol search powered by Finnhub.
+  - Detail pages with price, change, P/E, market cap, and TradingView widgets.
+- Market news
+  - Company and general news via Finnhub.
+  - Daily news summary emails (Inngest cron at 12:00 UTC) with AI summarization.
+- Alerts (email notifications)
+  - Create price alerts per symbol, delivered via email (Nodemailer).
+  - Alert de-duplication: once an alert triggers it’s deactivated to prevent spam.
+  - Notification preferences (email/SMS placeholder; SMS provider not yet wired).
+- Portfolio & performance optimization
+  - Computes daily returns from candles, annualizes mean/volatility.
+  - Markowitz Mean-Variance Optimization (long-only; S?¹µ heuristic).
+  - Sharpe ratio, CAPM expected returns vs proxy (SPY/QQQ/VOO or composite).
+  - Simplified Black–Litterman weights (equal-weight prior, no views input yet).
+  - Rebalance suggestions (equal/current ? MVO/BL targets) + CSV export.
+- In-app chat assistant (Inngest AI)
+  - Uses OpenAI or Gemini depending on env.
+  - Stores chat threads/messages in MongoDB.
+
+## Tech stack
+
+- App: Next.js 15, React 19, TypeScript, Tailwind CSS
+- Data + Auth: MongoDB (Mongoose), Better Auth
+- Jobs + AI: Inngest (cron + event), OpenAI/Gemini for summaries/chat
+- Email: Nodemailer (Gmail transport by default), HTML templates
+- Market data: Finnhub API
+- UI: Radix primitives (customized), TradingView widgets, Lucide icons
+
+## Project structure
+
+- pp/ — Next.js routes (pages for dashboard, watchlist, alerts, portfolio, APIs)
+- components/ — UI components (Watchlist, SearchCommand, Alerts, etc.)
+- database/models/ — Mongoose models (watchlist, chat, alerts, notification prefs)
+- hooks/ — Reusable hooks (e.g., useDebounce with unmount cleanup)
+- lib/actions/ — Server actions (finnhub, watchlist, alerts, users, portfolio)
+- lib/inngest/ — Inngest client, functions, and prompts
+- lib/nodemailer/ — Mailer and HTML templates (welcome, news, alerts)
+- 	ypes/ — Global TypeScript types
+
+## Environment variables
+
+Create a .env with the following (only those you need):
+
+- MongoDB
+  - MONGODB_URI=...
+- Finnhub
+  - FINNHUB_API_KEY=... (or NEXT_PUBLIC_FINNHUB_API_KEY=...)
+  - Optional: FINNHUB_MARKET_PROXY=SPY (fallbacks to QQQ/VOO or composite)
+- Inngest
+  - INNGEST_EVENT_KEY=... or INNGEST_SIGNING_KEY=...
+- Email (Nodemailer)
+  - NODEMAILER_EMAIL=you@example.com
+  - NODEMAILER_PASSWORD=...
+- App base URL (for absolute email image links)
+  - NEXT_PUBLIC_APP_URL=https://yourdomain.com (or APP_BASE_URL=...)
+- AI providers (optional)
+  - OPENAI_API_KEY=...
+  - GEMINI_API_KEY=...
+
+## Development
+
+`ash
+# Install
+npm install
+
+# Run dev server (http://localhost:3000)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# Build production
+npm run build
+npm run start
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Lint & format
+npm run lint
+npm run format
+`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Inngest jobs
 
-## Learn More
+This app defines several Inngest functions, including:
+- sendDailyNewsSummary — cron “0 12 * * *” and pp/send.daily.news
+- processPriceAlerts — cron “*/10 * * * *” and pp/alerts.process
 
-To learn more about Next.js, take a look at the following resources:
+Use the Inngest Dev Server or Dashboard to dispatch test events:
+- pp/send.daily.news — triggers daily news summary email flow.
+- pp/alerts.process — evaluates active alerts and emails any that trigger.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Notes & design choices
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Alerts are deactivated after the first trigger to avoid repeated email sends while price stays beyond the threshold. Users can re-enable or recreate alerts.
+- Market proxy for CAPM/beta defaults to SPY but falls back to a composite of watchlist assets if the proxy is unavailable (e.g., free API 403).
+- Candle requests have a small in-memory cache to reduce API calls during a single server runtime.
+- Email templates use absolute logo URLs computed from NEXT_PUBLIC_APP_URL/APP_BASE_URL.
+- Host validation in API routes allows multi-value x-forwarded-host entries.
 
-## Deploy on Vercel
+## Roadmap
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Persist user views and implement full Black–Litterman (P, Q, O inputs) in UI.
+- Wire SMS via Twilio (or similar) using phoneAllowed and phoneNumber prefs.
+- Efficient frontier visualization and multi-objective optimization (risk target).
+- Persist custom portfolio weights per user.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Disclaimer
+
+This project is for educational and informational purposes only and does not constitute financial advice. Always do your own research.

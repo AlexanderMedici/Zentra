@@ -38,66 +38,76 @@ export function WatchlistTable({ watchlist, onWatchlistChange }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {watchlist.map((item, index) => (
-            <TableRow
-              key={item.symbol + index}
-              className='table-row'
-              onClick={() =>
-                router.push(`/stocks/${encodeURIComponent(item.symbol)}`)
-              }
-            >
-              {(() => {
-                // Compute display values client-side when possible
-                const priceText = typeof item.currentPrice === 'number' ? formatPrice(item.currentPrice) : (item.priceFormatted || 'N/A');
-                const changeText = typeof item.changePercent === 'number' ? formatChangePercent(item.changePercent) : (item.changeFormatted || 'N/A');
-                const capText = typeof (item as any).marketCapUsd === 'number' ? formatMarketCapValue((item as any).marketCapUsd as number) : (item.marketCap || 'N/A');
-                const peText = typeof (item as any).peRatioNumber === 'number' ? ((item as any).peRatioNumber as number).toFixed(1) : (item.peRatio || 'N/A');
-                (item as any).__computed = { priceText, changeText, capText, peText };
-                return null;
-              })()}
-              <TableCell className='pl-4 table-cell'>{item.company}</TableCell>
-              <TableCell className='table-cell'>{item.symbol}</TableCell>
-              <TableCell className='table-cell'>
-                {(item as any).__computed?.priceText || 'N/A'}
-              </TableCell>
-              <TableCell
-                className={cn(
-                  'table-cell',
-                  getChangeColorClass(item.changePercent)
-                )}
+          {watchlist.map((item, index) => {
+            const priceText =
+              typeof item.currentPrice === 'number'
+                ? formatPrice(item.currentPrice)
+                : item.priceFormatted ?? 'N/A';
+            const changeText =
+              typeof item.changePercent === 'number'
+                ? formatChangePercent(item.changePercent)
+                : item.changeFormatted ?? 'N/A';
+            const capText =
+              typeof (item as any).marketCapUsd === 'number'
+                ? formatMarketCapValue((item as any).marketCapUsd as number)
+                : item.marketCap ?? 'N/A';
+            const peText =
+              typeof (item as any).peRatioNumber === 'number'
+                ? ((item as any).peRatioNumber as number).toFixed(1)
+                : item.peRatio ?? 'N/A';
+
+            return (
+              <TableRow
+                key={item.symbol + index}
+                className='table-row'
+                onClick={() =>
+                  router.push(`/stocks/${encodeURIComponent(item.symbol)}`)
+                }
               >
-                {(item as any).__computed?.changeText || 'N/A'}
-              </TableCell>
-              <TableCell className='table-cell'>
-                {(item as any).__computed?.capText || 'N/A'}
-              </TableCell>
-              <TableCell className='table-cell'>
-                {(item as any).__computed?.peText || 'N/A'}
-              </TableCell>
-              <TableCell>
-                <Button
-                  className='add-alert'
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelected({ symbol: item.symbol, company: item.company });
-                    setAlertOpen(true);
-                  }}
+                <TableCell className='pl-4 table-cell'>{item.company}</TableCell>
+                <TableCell className='table-cell'>{item.symbol}</TableCell>
+                <TableCell className='table-cell'>
+                  {priceText ?? 'N/A'}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    'table-cell',
+                    getChangeColorClass(item.changePercent)
+                  )}
                 >
-                  Add Alert
-                </Button>
-              </TableCell>
-              <TableCell>
-                <WatchlistButton
-                  symbol={item.symbol}
-                  company={item.company}
-                  isInWatchlist={true}
-                  showTrashIcon={true}
-                  type='icon'
-                  onWatchlistChange={onWatchlistChange}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
+                  {changeText ?? 'N/A'}
+                </TableCell>
+                <TableCell className='table-cell'>
+                  {capText ?? 'N/A'}
+                </TableCell>
+                <TableCell className='table-cell'>
+                  {peText ?? 'N/A'}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    className='add-alert'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelected({ symbol: item.symbol, company: item.company });
+                      setAlertOpen(true);
+                    }}
+                  >
+                    Add Alert
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <WatchlistButton
+                    symbol={item.symbol}
+                    company={item.company}
+                    isInWatchlist={true}
+                    showTrashIcon={true}
+                    type='icon'
+                    onWatchlistChange={onWatchlistChange}
+                  />
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
       {selected && (

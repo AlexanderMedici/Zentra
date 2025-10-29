@@ -38,7 +38,7 @@ export const getUserWatchlist = async () => {
       headers: await headers(),
     });
     if (!session?.user) redirect('/sign-in');
-
+    await connectToDatabase();
     const watchlist = await Watchlist.find({ userId: session.user.id })
       .sort({ addedAt: -1 })
       .lean();
@@ -55,7 +55,7 @@ export const addToWatchlist = async (symbol: string, company: string) => {
       headers: await headers(),
     });
     if (!session?.user) redirect('/sign-in');
-
+    await connectToDatabase();
     // Check if stock already exists in watchlist
     const existingItem = await Watchlist.findOne({
       userId: session.user.id,
@@ -89,7 +89,7 @@ export const removeFromWatchlist = async (symbol: string) => {
       headers: await headers(),
     });
     if (!session?.user) redirect('/sign-in');
-
+    await connectToDatabase();
     // Remove from watchlist
     await Watchlist.deleteOne({
       userId: session.user.id,
