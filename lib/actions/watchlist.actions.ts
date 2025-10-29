@@ -37,13 +37,8 @@ export const getUserWatchlist = async () => {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-<<<<<<< HEAD
     if (!session?.user) return [];
 
-=======
-    if (!session?.user) redirect('/sign-in');
-    await connectToDatabase();
->>>>>>> 4e0b45ed0c0fd763701def808c58ae87a1e46c29
     const watchlist = await Watchlist.find({ userId: session.user.id })
       .sort({ addedAt: -1 })
       .lean();
@@ -59,13 +54,8 @@ export const addToWatchlist = async (symbol: string, company: string) => {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-<<<<<<< HEAD
     if (!session?.user) return { success: false, error: 'Unauthorized' } as const;
 
-=======
-    if (!session?.user) redirect('/sign-in');
-    await connectToDatabase();
->>>>>>> 4e0b45ed0c0fd763701def808c58ae87a1e46c29
     // Check if stock already exists in watchlist
     const existingItem = await Watchlist.findOne({
       userId: session.user.id,
@@ -98,13 +88,8 @@ export const removeFromWatchlist = async (symbol: string) => {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-<<<<<<< HEAD
     if (!session?.user) return { success: false, error: 'Unauthorized' } as const;
 
-=======
-    if (!session?.user) redirect('/sign-in');
-    await connectToDatabase();
->>>>>>> 4e0b45ed0c0fd763701def808c58ae87a1e46c29
     // Remove from watchlist
     await Watchlist.deleteOne({
       userId: session.user.id,
