@@ -31,11 +31,23 @@ export default function AlertsManager({ initialAlerts }: { initialAlerts: AlertI
     })();
   }, []);
 
-  const onToggle = async (id: string, current?: boolean) => {
-    const next = !current;
+  const onToggle = async (id: string, _current?: boolean) => {
+    const prevActive = alerts.find((a) => a.id === id)?.active ?? false;
+    const next = !prevActive;
+    // Optimistic update for only this alert
     setAlerts((list) => list.map((a) => (a.id === id ? { ...a, active: next } : a)));
-    const res = await toggleAlertActive(id, next);
-    if (!res.success) toast.error(res.error || 'Failed to update');
+    try {
+      const res = await toggleAlertActive(id, next);
+      if (!res.success) {
+        // Revert only this alert on failure
+        setAlerts((list) => list.map((a) => (a.id === id ? { ...a, active: prevActive } : a)));
+        toast.error(res.error || 'Failed to update');
+      }
+    } catch (e) {
+      // Revert only this alert on exception
+      setAlerts((list) => list.map((a) => (a.id === id ? { ...a, active: prevActive } : a)));
+      toast.error('Failed to update');
+    }
   };
 
   const onDelete = async (id: string) => {

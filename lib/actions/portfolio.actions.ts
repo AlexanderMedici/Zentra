@@ -59,11 +59,14 @@ function invertMatrix(m: number[][]): number[][] | null {
 
 function mvOptimalWeights(mu: number[], sigma: number[][]): number[] {
   // Heuristic: w ~ Sigma^{-1} mu, normalized to sum=1 and clipped at 0
+  const n = mu.length;
+  if (n === 0) return [];
   const inv = invertMatrix(sigma);
-  if (!inv) return Array(mu.length).fill(1 / mu.length);
+  if (!inv) return Array(n).fill(1 / n);
   const raw = mu.map((_, i) => inv[i].reduce((s, v, j) => s + v * mu[j], 0));
   const clipped = raw.map((w) => Math.max(0, w));
-  const sum = clipped.reduce((a, b) => a + b, 0) || 1;
+  const sum = clipped.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return Array(n).fill(1 / n);
   return clipped.map((w) => w / sum);
 }
 
