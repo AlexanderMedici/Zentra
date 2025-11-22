@@ -4,7 +4,7 @@ Note most features that use cron jobs via inngest daily news and or alert ai age
 
 ## Project-Website 
 [Project-Website-Link]
-<a href="https://finsage-rose.vercel.app/">Mario Website Link</a>
+<a href="https://finsage-rose.vercel.app/">Finsage Link</a>
 
 Why this app? (Practical use case)
 ----------------------------------
